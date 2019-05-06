@@ -1,0 +1,8 @@
+"0","# URL for data source"
+"0","URL <- ""https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityReds.csv"""
+"0","# If data set not downloaded already, fetch it"
+"0","if (!file.exists(""./wineQualityReds.csv"")) {"
+"0","  download.file(URL, destfile = ""./wineQualityReds.csv"", method=""auto"")"
+"0","}"
+"0","# load dataset to the work enviroment"
+"0","wines <- read.csv(""wineQualityReds.csv"")"

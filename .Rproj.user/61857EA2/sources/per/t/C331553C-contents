@@ -1,0 +1,213 @@
+---
+title: "Red Wine Quality - Exploratory Data Analysis"
+author: "Abdullah Albyati"
+date: "May 4, 2019"
+output:
+  rmarkdown::html_document:
+    theme: cosmo
+    keep_md: true
+    toc: true
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is an exploratory data analysis for red wines data set, This tidy data set contains 1,599 red wines with 11 variables on the chemical properties of the wine. At least 3 wine experts rated the quality of each wine, providing a rating between 0 (very bad) and 10 (very excellent). The data can be downloaded [here](https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityReds.csv) Also [this](https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityInfo.txt) text file explaining the data can be useful
+
+```{r echo=FALSE}
+# URL for data source
+URL <- "https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityReds.csv"
+# If data set not downloaded already, fetch it
+if (!file.exists("./wineQualityReds.csv")) {
+  download.file(URL, destfile = "./wineQualityReds.csv", method="auto")
+}
+
+# load dataset to the work enviroment
+wines <- read.csv("wineQualityReds.csv")
+```
+
+```{r load-packages, echo=FALSE, message=FALSE, warning=FALSE}
+#Load packages
+library("funModeling") 
+library("tidyverse") 
+library("Hmisc")
+library("dplyr")
+library("plyr")
+library("ggplot2")
+library("corrplot")
+library(knitr)
+library(kableExtra)
+library(psych)
+library(plotly)
+```
+
+
+
+```{r summary, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+glimpse(wines) #gives a quick look into the data frame
+
+# statistical info for the data frame and put it in a formatted table
+prof <- profiling_num(wines)
+kable(prof, align = "c") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F) 
+
+#create a histogram of all numerical values in the data frame   
+plot_num(wines[2:13]) 
+```
+
+From the info above now we know there are 1599 observations (rows) and 13 variables (columns) we can also see some statistical info for each of the variables if needed. Also the plot shows that the majority of the wines tested has a low residual sugar content, and low chlorides.
+
+<br><br><br>
+## **How Many Wines in Each Rating Group?**
+```{r Scoring, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+#create a barchart using ggplot to show count by rating
+ggplot(wines, aes(x=as.factor(quality), fill=as.factor(quality) )) +
+    geom_bar( ) +
+    scale_fill_brewer(palette = "Set1") +
+    geom_text(stat = "count",aes(label= ..count..), vjust=-0.3, size=3.5) +
+    labs(fill = "Rating") +
+    xlab("Rating")
+```
+
+## **Which Wines has a rating of 8? (Highest Rating in Data Frame)**
+
+```{r Top-10, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+top <- subset(wines[2:13], quality >= 8) #choose a subset of the data for all wines with a rating of 8
+#use kable function from kablextra library to style the table and display it
+top %>%
+  mutate_if(is.numeric, function(x) {
+    cell_spec(x, bold = T, 
+              color = spec_color(x),
+              font_size = spec_font_size(x))
+  }) %>%
+  kable(escape = F, align = "c") %>%
+  kable_styling(c("striped", "condensed"), full_width = F)
+
+plot_num(top)
+
+```
+
+<br><br><br>
+
+
+## **Which Wines Has Rating of 3? (Lowest Rating in the Data Frame)**
+```{r Bottom, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+bottom <- subset(wines[1:13], quality <= 3) #choose a subset of the data for all wines with a rating of 3
+#use kable function from kablextra library to style the table and display it
+bottom %>%
+  mutate_if(is.numeric, function(x) {
+    cell_spec(x, bold = T, 
+              color = spec_color(x),
+              font_size = spec_font_size(x))
+  }) %>%
+  kable(escape = F, align = "c") %>%
+  kable_styling(c("striped", "condensed"), full_width = F)
+
+plot_num(bottom)
+
+```
+<br><br><br>
+
+## **Is There Any Correlation Between Any of The Variables and the Wine Rating?**
+<br><br>
+```{r Correlation, echo=FALSE, message=FALSE, warning=FALSE}
+p <- cor(wines[2:13])
+corrplot(p, type = "upper", order = "hclust")
+```
+<br><br>
+From the correlation matrix below we can see the 2 variables that has the highest correlation to quality are alcohol level and volatile acidity. 
+
+* The alcohol level to quality has a correlation of 0.48 (The closer the value to 1 the higher correlation) so it has a medium positive correlation, which means the higher the alcohol level the higher the rating.
+* Volatile acidity to rating has a correlation of -0.39 so it has a medium negative correlation, which means the lower the volatile acidity the higher the rating. 
+<br><br>
+The scale of medium correlation is based on  [This source](https://statistics.laerd.com/statistical-guides/pearson-correlation-coefficient-statistical-guide.php)
+
+```{r CorrelationMatrix, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+pairs.panels(wines[2:13])
+plotar(data=wines[2:13], target = "quality", plot_type =  "boxplot")
+```
+
+## **Is There Any strong Relationship (Correlation) Between One Chemical Property and Another?**
+To answer this question and investigate more I am going to select the variables that has a correlation higher than 0.60 or -0.60 
+<br>
+We see in the plot below that the higher the citric acid the higher the fixed acidity is
+```{r alcohol, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 8, fig.width = 10, fig.align = "center"}
+# Make a basic scatter plot :
+pAlc=plot_ly(wines, x = ~citric.acid, y = ~fixed.acidity, type="scatter", text = paste("Quality: ", wines$quality),
+        mode = "markers", color = ~quality, size = ~quality) %>% layout(title="Citric Acid Vs. Fixed Acidity")
+pAlc
+```
+<br><br>
+We see similar correlation between the density and fixed acidity
+```{r alcohol2, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 8, fig.width = 10, fig.align = "center"}
+# Make a basic scatter plot :
+pAlc=plot_ly(wines, x = ~fixed.acidity, y = ~density, type="scatter", text = paste("Quality: ", wines$quality),
+        mode = "markers", color = ~quality, size = ~quality) %>% layout(title="Density Vs. Fixed Acidity")
+pAlc
+```
+<br><br>
+We see in the plot below that as pH levels gets higher fixed acidity gets lower (negative correlation)
+```{r alcohol3, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 8, fig.width = 10, fig.align = "center"}
+# Make a basic scatter plot :
+pAlc=plot_ly(wines, x = ~pH, y = ~fixed.acidity, type="scatter", text = paste("Quality: ", wines$quality),
+        mode = "markers", color = ~quality, size = ~quality) %>% layout(title="pH Vs. Fixed Acidity")
+pAlc
+```
+
+## **Final Plots and Summary** (Interactive Plots!)
+In the correlation section above we plotted a box plot for all variables in the data frame to show correlation below is the same chart for the correlation between Volatile Acidity and the wine rating. 
+<br><br>
+We can summaries from the chart below that for wines that scored a rating of 8 the volatile acidity range is smaller (judged by the size of the box and whiskers in the plot) and the majority of the volatile acidity range for the wines rated 8 is between 0.49 and 0.33.
+<br>
+On the other hand the wines that scored 3 in the rating has a larger range in the volatile acidity and the majority falls between 1.2 and 0.61 
+which lead me to believe that lower volital acidity lead to higher rating
+<br>
+```{r FinalPlot1, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+pVo <- ggplot(wines, aes(x=as.factor(quality), y=volatile.acidity, fill = quality)) + 
+  geom_boxplot() + 
+  ggtitle("Correlation Between Volatile Acidity And Rating") +
+  xlab("Rating, Range From 0-10") + 
+  ylab("Volatile Acidity (acetic acid - g / dm^3)")
+ggplotly(pVo)
+```
+<br><br>
+Similair to the correlation plot above, the plot below shows the realtionship/correlation between Sulphates and Rating as we can see the wines rated 8 has a slightly higher sulpahte levels than wines rated 3. However there are some outliers which migh effect the correlation and further analysis might be needed.
+<br><br>
+```{r FinalPlot2, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+pVo2 <- ggplot(wines, aes(x=as.factor(quality), y=sulphates, fill = quality)) + 
+  geom_boxplot() + 
+  ggtitle("Correlation Between Sulphates And Rating") +
+  xlab("Rating, Range From 0-10") + 
+  ylab("sulphates (potassium sulphate - g / dm3)")
+ggplotly(pVo2)
+```
+
+<br><br>
+Final plot we are goint to look at from the correlation section is the alcohol to rating plot. This plot shows clear relationship between higher alcohol percentage and higher rating. <br>
+* The majority of the wines rated 9 has an alcohol level ranging from 11.30% to 12.90%
+* The majority of wines rated 3 has an alcohol level ranging from 9.70% to 10.70%
+```{r FinalPlot3, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 10, fig.width = 10, fig.align = "center"}
+pVo3 <- ggplot(wines, aes(x=as.factor(quality), y=alcohol, fill = quality)) + 
+  geom_boxplot() + 
+  ggtitle("Correlation Between Alcohol Level And Rating") +
+  xlab("Rating, Range From 0-10") + 
+  ylab("Alcohol (% by volume)")
+ggplotly(pVo3)
+```
+
+## **Reflection**
+The data set contained rating and chemical properties of 1500 wines tested by experts and rated on a scale of 0-10(very bad - excellent), although the data set we have only has ratings from 3-10. I started by analyzing the data set and knowing what are the variables and the data type for each variable, then moved visualizing the ratings and the correlation between the data set variables. <br>
+
+There are some variables that has some correlation with the rating given to the wine. However, I don't think the data is strong enough to suggest that a wine a=is rated higher due to a specific chemical property. I believe knowing the circumstances of the judges during the rating process, for example what kind of food have they eaten during the day of the rating? did the judges do multiple wines in the same day? all these questions and more can help us understand the data better and reach better conclusions.<br>
+
+Limitations I faced is not knowing how the rating was given and within what time period.
+
+
+## **Sources** <br>
+* (https://www.r-graph-gallery.com/all-graphs/)
+* (https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf)
+* (https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html)
+
+
